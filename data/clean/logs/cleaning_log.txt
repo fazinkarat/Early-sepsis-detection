@@ -1,0 +1,85 @@
+2025-09-14 06:17:34 | === Data Cleaning Run Started ===
+2025-09-14 06:17:34 | {
+  "patients_csv": "C:\\AML\\Early-sepsis-detection\\data\\PATIENTS.csv",
+  "admissions_csv": "C:\\AML\\Early-sepsis-detection\\data\\ADMISSIONS.csv",
+  "icustays_csv": "C:\\AML\\Early-sepsis-detection\\data\\ICUSTAYS.csv",
+  "diagnoses_icd_csv": "C:\\AML\\Early-sepsis-detection\\data\\DIAGNOSES_ICD.csv",
+  "d_icd_diagnoses_csv": "C:\\AML\\Early-sepsis-detection\\data\\D_ICD_DIAGNOSES.csv",
+  "chartevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\CHARTEVENTS.csv",
+  "labevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\LABEVENTS.csv",
+  "out_parquet": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort.parquet",
+  "out_preview_csv": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort_preview.csv",
+  "log_file": "C:\\AML\\Early-sepsis-detection\\data\\clean\\logs\\cleaning_log.txt"
+}
+2025-09-14 06:17:36 | === Data Cleaning Run Started ===
+2025-09-14 06:17:36 | {
+  "patients_csv": "C:\\AML\\Early-sepsis-detection\\data\\PATIENTS.csv",
+  "admissions_csv": "C:\\AML\\Early-sepsis-detection\\data\\ADMISSIONS.csv",
+  "icustays_csv": "C:\\AML\\Early-sepsis-detection\\data\\ICUSTAYS.csv",
+  "diagnoses_icd_csv": "C:\\AML\\Early-sepsis-detection\\data\\DIAGNOSES_ICD.csv",
+  "d_icd_diagnoses_csv": "C:\\AML\\Early-sepsis-detection\\data\\D_ICD_DIAGNOSES.csv",
+  "chartevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\CHARTEVENTS.csv",
+  "labevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\LABEVENTS.csv",
+  "out_parquet": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort.parquet",
+  "out_preview_csv": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort_preview.csv",
+  "log_file": "C:\\AML\\Early-sepsis-detection\\data\\clean\\logs\\cleaning_log.txt"
+}
+2025-09-14 06:19:15 | === Data Cleaning Run Started ===
+2025-09-14 06:19:15 | {
+  "patients_csv": "C:\\AML\\Early-sepsis-detection\\data\\PATIENTS.csv",
+  "admissions_csv": "C:\\AML\\Early-sepsis-detection\\data\\ADMISSIONS.csv",
+  "icustays_csv": "C:\\AML\\Early-sepsis-detection\\data\\ICUSTAYS.csv",
+  "diagnoses_icd_csv": "C:\\AML\\Early-sepsis-detection\\data\\DIAGNOSES_ICD.csv",
+  "d_icd_diagnoses_csv": "C:\\AML\\Early-sepsis-detection\\data\\D_ICD_DIAGNOSES.csv",
+  "chartevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\CHARTEVENTS.csv",
+  "labevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\LABEVENTS.csv",
+  "out_parquet": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort.parquet",
+  "out_preview_csv": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort_preview.csv",
+  "log_file": "C:\\AML\\Early-sepsis-detection\\data\\clean\\logs\\cleaning_log.txt"
+}
+2025-09-14 06:19:15 | [FATAL] PATIENTS: missing required columns ['SUBJECT_ID']. Found columns: ['row_id', 'subject_id', 'gender', 'dob', 'dod', 'dod_hosp', 'dod_ssn', 'expire_flag']
+2025-09-14 08:49:22 | === Data Cleaning Run Started ===
+2025-09-14 08:49:22 | {
+  "patients_csv": "C:\\AML\\Early-sepsis-detection\\data\\PATIENTS.csv",
+  "admissions_csv": "C:\\AML\\Early-sepsis-detection\\data\\ADMISSIONS.csv",
+  "icustays_csv": "C:\\AML\\Early-sepsis-detection\\data\\ICUSTAYS.csv",
+  "diagnoses_icd_csv": "C:\\AML\\Early-sepsis-detection\\data\\DIAGNOSES_ICD.csv",
+  "d_icd_diagnoses_csv": "C:\\AML\\Early-sepsis-detection\\data\\D_ICD_DIAGNOSES.csv",
+  "chartevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\CHARTEVENTS.csv",
+  "labevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\LABEVENTS.csv",
+  "out_parquet": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort.parquet",
+  "out_preview_csv": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort_preview.csv",
+  "log_file": "C:\\AML\\Early-sepsis-detection\\data\\clean\\logs\\cleaning_log.txt"
+}
+2025-09-14 08:49:22 | [FATAL] Overflow in int64 addition
+2025-09-14 08:53:11 | === Data Cleaning Run Started ===
+2025-09-14 08:53:11 | {
+  "patients_csv": "C:\\AML\\Early-sepsis-detection\\data\\PATIENTS.csv",
+  "admissions_csv": "C:\\AML\\Early-sepsis-detection\\data\\ADMISSIONS.csv",
+  "icustays_csv": "C:\\AML\\Early-sepsis-detection\\data\\ICUSTAYS.csv",
+  "diagnoses_icd_csv": "C:\\AML\\Early-sepsis-detection\\data\\DIAGNOSES_ICD.csv",
+  "d_icd_diagnoses_csv": "C:\\AML\\Early-sepsis-detection\\data\\D_ICD_DIAGNOSES.csv",
+  "chartevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\CHARTEVENTS.csv",
+  "labevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\LABEVENTS.csv",
+  "out_parquet": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort.parquet",
+  "out_preview_csv": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort_preview.csv",
+  "log_file": "C:\\AML\\Early-sepsis-detection\\data\\clean\\logs\\cleaning_log.txt"
+}
+2025-09-14 08:53:11 | [FATAL] 'DatetimeProperties' object has no attribute 'to_julian_date'
+2025-09-14 08:54:17 | === Data Cleaning Run Started ===
+2025-09-14 08:54:17 | {
+  "patients_csv": "C:\\AML\\Early-sepsis-detection\\data\\PATIENTS.csv",
+  "admissions_csv": "C:\\AML\\Early-sepsis-detection\\data\\ADMISSIONS.csv",
+  "icustays_csv": "C:\\AML\\Early-sepsis-detection\\data\\ICUSTAYS.csv",
+  "diagnoses_icd_csv": "C:\\AML\\Early-sepsis-detection\\data\\DIAGNOSES_ICD.csv",
+  "d_icd_diagnoses_csv": "C:\\AML\\Early-sepsis-detection\\data\\D_ICD_DIAGNOSES.csv",
+  "chartevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\CHARTEVENTS.csv",
+  "labevents_csv": "C:\\AML\\Early-sepsis-detection\\data\\LABEVENTS.csv",
+  "out_parquet": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort.parquet",
+  "out_preview_csv": "C:\\AML\\Early-sepsis-detection\\data\\clean\\clean_cohort_preview.csv",
+  "log_file": "C:\\AML\\Early-sepsis-detection\\data\\clean\\logs\\cleaning_log.txt"
+}
+2025-09-14 08:54:18 | Dropped 0 rows with missing critical times/age.
+2025-09-14 08:54:18 | Saved cohort to C:\AML\Early-sepsis-detection\data\clean\clean_cohort.parquet
+2025-09-14 08:54:18 | Saved preview to C:\AML\Early-sepsis-detection\data\clean\clean_cohort_preview.csv
+2025-09-14 08:54:18 | === Data Cleaning Completed ===

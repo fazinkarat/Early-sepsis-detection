@@ -1,0 +1,28 @@
+2025-09-14 06:04:50 | === Data Cleaning Run Started ===
+2025-09-14 06:04:50 | {
+  "patients_csv": "C:\\AML\\Early-sepsis-detection\\PATIENTS.csv",
+  "admissions_csv": "C:\\AML\\Early-sepsis-detection\\ADMISSIONS.csv",
+  "icustays_csv": "C:\\AML\\Early-sepsis-detection\\ICUSTAYS.csv",
+  "diagnoses_icd_csv": "C:\\AML\\Early-sepsis-detection\\DIAGNOSES_ICD.csv",
+  "d_icd_diagnoses_csv": "C:\\AML\\Early-sepsis-detection\\D_ICD_DIAGNOSES.csv",
+  "chartevents_csv": "C:\\AML\\Early-sepsis-detection\\CHARTEVENTS.csv",
+  "labevents_csv": "C:\\AML\\Early-sepsis-detection\\LABEVENTS.csv",
+  "out_parquet": "C:\\AML\\Early-sepsis-detection\\clean\\clean_cohort.parquet",
+  "out_preview_csv": "C:\\AML\\Early-sepsis-detection\\clean\\clean_cohort_preview.csv",
+  "log_file": "C:\\AML\\Early-sepsis-detection\\clean\\logs\\cleaning_log.txt"
+}
+2025-09-14 06:04:50 | [FATAL] Required CSVs missing. Use --data-dir to point to your folder.
+2025-09-14 06:06:06 | === Data Cleaning Run Started ===
+2025-09-14 06:06:06 | {
+  "patients_csv": "C:\\AML\\Early-sepsis-detection\\PATIENTS.csv",
+  "admissions_csv": "C:\\AML\\Early-sepsis-detection\\ADMISSIONS.csv",
+  "icustays_csv": "C:\\AML\\Early-sepsis-detection\\ICUSTAYS.csv",
+  "diagnoses_icd_csv": "C:\\AML\\Early-sepsis-detection\\DIAGNOSES_ICD.csv",
+  "d_icd_diagnoses_csv": "C:\\AML\\Early-sepsis-detection\\D_ICD_DIAGNOSES.csv",
+  "chartevents_csv": "C:\\AML\\Early-sepsis-detection\\CHARTEVENTS.csv",
+  "labevents_csv": "C:\\AML\\Early-sepsis-detection\\LABEVENTS.csv",
+  "out_parquet": "C:\\AML\\Early-sepsis-detection\\clean\\clean_cohort.parquet",
+  "out_preview_csv": "C:\\AML\\Early-sepsis-detection\\clean\\clean_cohort_preview.csv",
+  "log_file": "C:\\AML\\Early-sepsis-detection\\clean\\logs\\cleaning_log.txt"
+}
+2025-09-14 06:06:06 | [FATAL] Required CSVs missing. Use --data-dir to point to your folder.
