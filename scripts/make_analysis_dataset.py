@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """
-make_analysis_dataset.py (robust, fallback-friendly)
-- Normalizes headers to UPPERCASE for all CSVs.
-- Parses date columns only if present.
-- Computes age safely (no nanosecond subtraction overflow).
-- Sepsis label from ICD-9 with guaranteed 'SEPSIS' column.
-- Vitals mapping: dictionary first, then unit/range heuristics fallback.
-- Chunks only CHARTEVENTS / LABEVENTS to handle large files.
+make_analysis_dataset.py (robust, with outlier handling & richer plots)
+- Normalizes headers to UPPERCASE.
+- Safe age computation.
+- Sepsis label from ICD-9.
+- 24h ICU vitals & labs aggregation.
+- Physiologic bounds + winsorization.
+- Plots: class balance, age hist, boxplots, log-hists for skewed labs, annotated heatmap.
 """
 import os, re, gc, warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Optional: silence mixed dtype warnings from huge CSVs
 warnings.filterwarnings("ignore", category=pd.errors.DtypeWarning)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -22,10 +21,6 @@ os.makedirs(PLOT_DIR, exist_ok=True)
 
 # ---------- IO helpers ----------
 def read_csv_upper(path, want_cols=None, want_dates=None, chunksize=None):
-    """
-    For large tables (when chunksize is provided), yields normalized chunks.
-    For small tables (no chunksize), returns a DataFrame with normalized headers.
-    """
     if chunksize is not None:
         it = pd.read_csv(path, low_memory=True, chunksize=chunksize)
         for chunk in it:
@@ -40,7 +35,6 @@ def read_csv_upper(path, want_cols=None, want_dates=None, chunksize=None):
                         chunk[cu] = pd.to_datetime(chunk[cu], errors='coerce')
             yield chunk
         return
-
     df = pd.read_csv(path, low_memory=False)
     df.columns = df.columns.str.upper()
     if want_cols is not None:
@@ -54,10 +48,6 @@ def read_csv_upper(path, want_cols=None, want_dates=None, chunksize=None):
     return df
 
 def read_core_df(path, want_cols=None, want_dates=None):
-    """
-    Force DataFrame (no chunking) and normalize headers.
-    Use for small tables: PATIENTS, ADMISSIONS, ICUSTAYS, DIAGNOSES_ICD, dictionaries.
-    """
     df = pd.read_csv(path, low_memory=False)
     df.columns = df.columns.str.upper()
     if want_dates:
@@ -82,8 +72,34 @@ def map_feature(label, mapping):
             return feat
     return None
 
+# --- Outlier handling helpers ---
+def apply_physiologic_bounds(df: pd.DataFrame) -> pd.DataFrame:
+    bounds = {
+        "temp_c": (25, 45),
+        "spo2": (50, 100),
+        "heart_rate": (20, 220),
+        "resp_rate": (4, 80),
+        "mean_bp": (25, 250),
+        "lactate": (0, 20),
+        "wbc": (0.1, 200),
+        "platelets": (5, 1500),
+        "creatinine": (0.1, 20),
+    }
+    for col, (lo, hi) in bounds.items():
+        if col in df.columns:
+            df.loc[~df[col].between(lo, hi), col] = np.nan
+    return df
+
+def winsorize(df: pd.DataFrame, cols: list, p_low=0.01, p_high=0.99) -> pd.DataFrame:
+    for col in cols:
+        if col in df.columns:
+            lo, hi = df[col].quantile([p_low, p_high])
+            if pd.notna(lo) and pd.notna(hi) and lo < hi:
+                df[col] = df[col].clip(lo, hi)
+    return df
+
 def main():
-    # --- Load core tables (force DF, normalized headers) ---
+    # --- Load core tables ---
     patients  = read_core_df(os.path.join(DATA_DIR, "PATIENTS.csv"),
                              want_cols=["SUBJECT_ID","GENDER","DOB","DOD"],
                              want_dates=["DOB","DOD"])
@@ -100,7 +116,7 @@ def main():
     print("ADMISSIONS columns:", list(admissions.columns))
     print("ICUSTAYS columns:", list(icustays.columns))
 
-    # --- Build merged ICU dataframe ---
+    # --- Merge & age ---
     icu = icustays.merge(
         admissions[["SUBJECT_ID","HADM_ID","ADMITTIME"]],
         on=["SUBJECT_ID","HADM_ID"], how="left"
@@ -108,49 +124,35 @@ def main():
         patients[["SUBJECT_ID","GENDER","DOB"]],
         on="SUBJECT_ID", how="left"
     )
-
-    # --- SAFE age computation (avoid ns overflow) ---
     icu["AGE_YEARS"] = np.nan
     mask = icu["ADMITTIME"].notna() & icu["DOB"].notna()
-
-    # calendar-year difference
     age_years = icu.loc[mask, "ADMITTIME"].dt.year - icu.loc[mask, "DOB"].dt.year
-    # adjust if birthday hasn’t occurred yet this year
     adm_md = icu.loc[mask, "ADMITTIME"].dt.strftime("%m%d").astype(int)
     dob_md = icu.loc[mask, "DOB"].dt.strftime("%m%d").astype(int)
     age_years = age_years - (adm_md < dob_md).astype(int)
-
     icu.loc[mask, "AGE_YEARS"] = age_years
     icu["AGE_YEARS"] = icu["AGE_YEARS"].clip(lower=0, upper=120)
 
-    # --- Base cohort for later joins ---
     icustays_basic = icu[[
         "SUBJECT_ID","HADM_ID","ICUSTAY_ID","INTIME","OUTTIME","LOS","GENDER","AGE_YEARS"
     ]].copy()
 
-    # --- Sepsis label from ICD-9 (guaranteed column) ---
+    # --- Sepsis label ---
     sepsis_codes = {"99591", "99592", "78552"}
     diag["ICD9_NORM"] = diag["ICD9_CODE"].apply(normalize_icd)
     diag["SEPSIS"] = diag["ICD9_NORM"].isin(sepsis_codes).astype(int)
     hadm_sepsis = diag.groupby(["SUBJECT_ID", "HADM_ID"], as_index=False)["SEPSIS"].max()
-
     icustays_lbl = icustays_basic.merge(hadm_sepsis, on=["SUBJECT_ID","HADM_ID"], how="left")
     icustays_lbl["SEPSIS"] = icustays_lbl["SEPSIS"].fillna(0).astype(int)
 
-    # --- Dictionaries (optional) ---
+    # --- Dictionaries ---
     d_labitems_path = os.path.join(DATA_DIR, "D_LABITEMS.csv")
     have_d_lab = os.path.exists(d_labitems_path)
-    if have_d_lab:
-        d_labitems = read_core_df(d_labitems_path, want_cols=["ITEMID","LABEL","FLUID","CATEGORY"])
-    else:
-        d_labitems = pd.DataFrame(columns=["ITEMID","LABEL","FLUID","CATEGORY"])
+    d_labitems = read_core_df(d_labitems_path, want_cols=["ITEMID","LABEL","FLUID","CATEGORY"]) if have_d_lab else pd.DataFrame(columns=["ITEMID","LABEL","FLUID","CATEGORY"])
 
     d_items_path = os.path.join(DATA_DIR, "D_ITEMS.csv")
     have_d_items = os.path.exists(d_items_path)
-    if have_d_items:
-        d_items = read_core_df(d_items_path, want_cols=["ITEMID","LABEL","CATEGORY"])
-    else:
-        d_items = pd.DataFrame(columns=["ITEMID","LABEL","CATEGORY"])
+    d_items = read_core_df(d_items_path, want_cols=["ITEMID","LABEL","CATEGORY"]) if have_d_items else pd.DataFrame(columns=["ITEMID","LABEL","CATEGORY"])
 
     vital_name_patterns = {
         "HEART_RATE": r"(?i)\bheart\s*rate\b|HR\b",
@@ -179,7 +181,7 @@ def main():
     else:
         lab_itemids = {k: set() for k in lab_name_patterns}
 
-    # --- First-24h ICU window ---
+    # --- First-24h window ---
     icustay_windows = icustays_lbl[[
         "SUBJECT_ID","HADM_ID","ICUSTAY_ID","INTIME","OUTTIME","SEPSIS","GENDER","AGE_YEARS"
     ]].copy()
@@ -195,7 +197,6 @@ def main():
         for chunk in read_csv_upper(vitals_path, want_cols=cols, want_dates=["CHARTTIME"], chunksize=1_000_000):
             if "ICUSTAY_ID" in chunk.columns:
                 chunk = chunk[chunk["ICUSTAY_ID"].isin(valid_icustays)]
-            # join time window
             chunk = chunk.merge(icustay_windows[["ICUSTAY_ID","INTIME","END_24H"]], on="ICUSTAY_ID", how="left")
             if "CHARTTIME" in chunk.columns:
                 chunk = chunk[(chunk["CHARTTIME"] >= chunk["INTIME"]) & (chunk["CHARTTIME"] < chunk["END_24H"])]
@@ -203,36 +204,29 @@ def main():
                 allowed = set().union(*vital_itemids.values())
                 chunk = chunk[chunk["ITEMID"].isin(allowed)]
             else:
-                # heuristic filter by units/value presence
                 chunk = chunk[(chunk["VALUENUM"].notna()) &
                               (chunk["VALUEUOM"].fillna("").str.contains("bpm|C|F|mmHg|%", case=False))]
-            # keep VALUEUOM for heuristics
             vital_events.append(chunk[["ICUSTAY_ID","ITEMID","VALUENUM","VALUEUOM"]])
 
     vitals_24h = pd.concat(vital_events, ignore_index=True) if vital_events else pd.DataFrame(columns=["ICUSTAY_ID","ITEMID","VALUENUM","VALUEUOM"])
     del vital_events; gc.collect()
 
-    # --- Map vitals to features (dictionary first, then heuristics) ---
     if len(vitals_24h):
-        # dictionary-based mapping (if we have D_ITEMS)
         if have_d_items and "ITEMID" in vitals_24h.columns and len(d_items):
             vitals_24h = vitals_24h.merge(d_items[["ITEMID","LABEL"]], on="ITEMID", how="left")
             vitals_24h["FEAT"] = vitals_24h["LABEL"].apply(lambda x: map_feature(x, vital_name_patterns))
 
-        # ensure FEAT is object-typed so we can store strings safely
         if "FEAT" not in vitals_24h.columns:
             vitals_24h["FEAT"] = pd.Series(index=vitals_24h.index, dtype=object)
         else:
             vitals_24h["FEAT"] = vitals_24h["FEAT"].astype(object)
 
-        # heuristic fallback if FEAT missing or all NaN
         if ("FEAT" not in vitals_24h.columns) or (vitals_24h["FEAT"].isna().all()):
             if "VALUEUOM" not in vitals_24h.columns:
                 vitals_24h["VALUEUOM"] = ""
             uom = vitals_24h["VALUEUOM"].fillna("").str.lower()
             vitals_24h["FEAT"] = np.nan
 
-            # temperature (C/F) -> convert F to C if value looks Fahrenheit
             temp_mask = (uom.str.contains("c") | uom.str.contains("f")) & vitals_24h["VALUENUM"].notna()
             if temp_mask.any():
                 vals = pd.to_numeric(vitals_24h.loc[temp_mask, "VALUENUM"], errors="coerce")
@@ -242,15 +236,12 @@ def main():
                 vitals_24h.loc[temp_mask, "VALUENUM"] = vals_c
                 vitals_24h.loc[temp_mask, "FEAT"] = "TEMP_C"
 
-            # SpO2: %
-            spo2_mask = uom.str.contains("%")
+            spo2_mask = uom.str_contains = uom.str.contains("%")
             vitals_24h.loc[spo2_mask, "FEAT"] = vitals_24h.loc[spo2_mask, "FEAT"].fillna("SPO2")
 
-            # mmHg → treat as MEAN_BP (can't reliably split SBP/MAP without labels)
             bp_mask = uom.str.contains("mmhg")
             vitals_24h.loc[bp_mask, "FEAT"] = vitals_24h.loc[bp_mask, "FEAT"].fillna("MEAN_BP")
 
-            # bpm → RR if ≤40 else HR (simple heuristic)
             bpm_mask = uom.str.contains("bpm") & vitals_24h["VALUENUM"].notna()
             if bpm_mask.any():
                 vals_bpm = pd.to_numeric(vitals_24h.loc[bpm_mask, "VALUENUM"], errors="coerce")
@@ -261,17 +252,15 @@ def main():
                 vitals_24h.loc[rr_rows, "FEAT"] = vitals_24h.loc[rr_rows, "FEAT"].fillna("RESP_RATE")
                 vitals_24h.loc[hr_rows, "FEAT"] = vitals_24h.loc[hr_rows, "FEAT"].fillna("HEART_RATE")
 
-            # drop rows we still cannot map
             vitals_24h = vitals_24h[vitals_24h["FEAT"].notna()]
 
-    # --- Aggregate vitals ---
     if len(vitals_24h) and "FEAT" in vitals_24h.columns:
         vitals_24h["VALUENUM"] = pd.to_numeric(vitals_24h["VALUENUM"], errors="coerce")
         agg_vitals = vitals_24h.groupby(["ICUSTAY_ID","FEAT"])["VALUENUM"].mean().unstack("FEAT")
     else:
         agg_vitals = pd.DataFrame()
 
-    # --- LABEVENTS (labs) ---
+    # --- LABEVENTS ---
     labs_path = os.path.join(DATA_DIR, "LABEVENTS.csv")
     lab_events = []
     if os.path.exists(labs_path):
@@ -311,10 +300,8 @@ def main():
     if len(agg_labs):
         features = features.join(agg_labs, how="left")
 
-    # reset first, THEN lowercase so index name also gets lowercased
-    features.reset_index(inplace=True)              # brings ICUSTAY_ID out as a column
-    features.columns = [c.lower() for c in features.columns]  # now we have 'icustay_id'
-
+    features.reset_index(inplace=True)
+    features.columns = [c.lower() for c in features.columns]
 
     # --- Clean & transform ---
     keep_cols = ["icustay_id","sepsis","gender","age_years"]
@@ -328,12 +315,19 @@ def main():
 
     for col in good_numeric:
         clean[col] = pd.to_numeric(clean[col], errors="coerce")
-        clean[col] = clean[col].fillna(clean[col].median())
 
+    # 1) physiologic bounds
+    clean = apply_physiologic_bounds(clean)
+    # 2) impute
+    for col in good_numeric:
+        clean[col] = clean[col].fillna(clean[col].median())
+    # 3) winsorize
+    clean = winsorize(clean, good_numeric, 0.01, 0.99)
+    # 4) log1p features (kept for ML)
     for col in ["lactate","wbc","platelets","creatinine"]:
         if col in clean.columns:
             clean[f"log1p_{col}"] = np.log1p(clean[col])
-
+    # 5) z-scores
     for col in good_numeric:
         mu, sigma = clean[col].mean(), clean[col].std(ddof=0)
         if sigma and sigma > 0:
@@ -343,7 +337,7 @@ def main():
     clean.head(20).to_csv(out_preview, index=False)
     print("Saved preview to", out_preview)
 
-    # --- Plots ---
+    # ---------- Plots ----------
     # Class balance
     if "sepsis" in clean.columns:
         plt.figure()
@@ -368,7 +362,7 @@ def main():
         plt.tight_layout()
         plt.savefig(os.path.join(PLOT_DIR, "age_hist_by_class.png"))
 
-    # Boxplots for some features
+    # Boxplots
     def boxplot_feature(col, title):
         if col in clean.columns and "sepsis" in clean.columns:
             plt.figure()
@@ -381,15 +375,50 @@ def main():
     for col in ["heart_rate","resp_rate","temp_c","mean_bp","spo2","lactate","wbc","platelets","creatinine"]:
         boxplot_feature(col, f"{col.replace('_',' ').title()} by class")
 
-    # Correlation heatmap (z-scored)
+    # NEW: Log-scaled histograms for skewed labs
+    skewed = [c for c in ["wbc","creatinine","platelets","lactate"] if c in clean.columns]
+    for col in skewed:
+        # raw histogram
+        plt.figure()
+        if "sepsis" in clean.columns:
+            clean[clean["sepsis"]==0][col].plot(kind="hist", alpha=0.6, bins=30)
+            clean[clean["sepsis"]==1][col].plot(kind="hist", alpha=0.6, bins=30)
+            plt.legend(["Non-sepsis","Sepsis"])
+        else:
+            clean[col].plot(kind="hist", bins=30)
+        plt.xlabel(col.replace("_"," ").title())
+        plt.title(f"{col.replace('_',' ').title()} (raw scale)")
+        plt.tight_layout()
+        plt.savefig(os.path.join(PLOT_DIR, f"hist_{col}.png"))
+
+        # log1p histogram
+        plt.figure()
+        vals0 = np.log1p(clean[clean["sepsis"]==0][col]) if "sepsis" in clean.columns else np.log1p(clean[col])
+        vals1 = np.log1p(clean[clean["sepsis"]==1][col]) if "sepsis" in clean.columns else None
+        if "sepsis" in clean.columns:
+            vals0.plot(kind="hist", alpha=0.6, bins=30)
+            vals1.plot(kind="hist", alpha=0.6, bins=30)
+            plt.legend(["Non-sepsis","Sepsis"])
+        else:
+            vals0.plot(kind="hist", bins=30)
+        plt.xlabel(f"log1p({col})")
+        plt.title(f"{col.replace('_',' ').title()} (log scale)")
+        plt.tight_layout()
+        plt.savefig(os.path.join(PLOT_DIR, f"hist_log_{col}.png"))
+
+    # Annotated correlation heatmap
     z_cols = [c for c in clean.columns if c.startswith("z_")]
     if len(z_cols) >= 2:
         corr = clean[z_cols].corr()
-        plt.figure(figsize=(7,6))
-        plt.imshow(corr, interpolation='nearest')
-        plt.colorbar()
+        plt.figure(figsize=(8,7))
+        im = plt.imshow(corr, interpolation='nearest')
+        plt.colorbar(im)
         plt.xticks(range(len(z_cols)), z_cols, rotation=90)
         plt.yticks(range(len(z_cols)), z_cols)
+        # annotate with values
+        for i in range(len(z_cols)):
+            for j in range(len(z_cols)):
+                plt.text(j, i, f"{corr.iat[i,j]:.2f}", ha="center", va="center", fontsize=8)
         plt.title("Correlation heatmap (z-scored features)")
         plt.tight_layout()
         plt.savefig(os.path.join(PLOT_DIR, "corr_heatmap.png"))
